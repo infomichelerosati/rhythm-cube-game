@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rhythm Cube Game - VU Meter Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            overflow: hidden;
+            touch-action: none;
+            background-color: #0f0f1e;
+        }
+        .screen {
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: absolute;
+            top: 0;
+            left: 0;
+            transition: opacity 0.5s ease-in-out, visibility 0.5s;
+            padding: 1rem;
+        }
+        .hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+        canvas#game-canvas {
+            background-color: #1a1a2e;
+            display: block;
+            border-radius: 12px;
+            box-shadow: 0 0 35px rgba(76, 89, 186, 0.3);
+            flex-shrink: 1;
+        }
+        .btn {
+            @apply px-8 py-3 bg-indigo-600 text-white font-bold rounded-lg shadow-lg transform transition-transform duration-200 hover:scale-105 active:scale-95 disabled:bg-gray-500 disabled:cursor-not-allowed disabled:scale-100;
+        }
+        .btn-secondary {
+             @apply px-6 py-2 mt-4 bg-transparent border-2 border-indigo-400 text-indigo-300 font-semibold rounded-lg hover:bg-indigo-400 hover:text-white transition-colors duration-200;
+        }
+        .text-glow {
+            text-shadow: 0 0 8px rgba(255, 255, 255, 0.5), 0 0 10px rgba(120, 81, 169, 0.5);
+        }
+        /* Stili per la barra delle statistiche pulsante */
+        #stats-bar {
+            transition: box-shadow 0.1s ease-out, transform 0.1s ease-out;
+        }
+        #stats-bar.pulse {
+            transform: scale(1.02);
+            box-shadow: 0 0 55px rgba(140, 160, 255, 0.7);
+        }
+        /* Stili per i selettori */
+        .selector-container {
+            @apply w-full max-w-md mt-6 text-center;
+        }
+        .custom-select {
+            @apply w-full max-w-xs p-2 rounded-md bg-gray-800 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 mx-auto;
+        }
+    </style>
+</head>
+<body class="text-white">
+
+    <!-- Schermata iniziale -->
+    <div id="start-screen" class="screen bg-black/50 backdrop-blur-sm z-30">
+        <h1 class="text-5xl md:text-6xl font-bold mb-4 text-glow text-center">Rhythm Cube</h1>
+        <p class="text-lg md:text-xl mb-6 text-gray-300 text-center">Scegli una canzone o carica il tuo MP3!</p>
+
+        <div class="w-full max-w-sm space-y-4 flex flex-col items-center">
+             <!-- NUOVO: Selettore per canzoni predefinite -->
+             <div class="selector-container">
+                <label for="song-select" class="text-center text-gray-300 mb-2 block">Oppure scegli una canzone:</label>
+                <select id="song-select" class="custom-select">
+                    <option value="" disabled selected>Seleziona un brano...</option>
+                </select>
+             </div>
+
+             <p class="text-gray-400">--- o ---</p>
+
+             <label id="upload-label" for="mp3-upload" class="btn cursor-pointer w-full text-center">Carica il tuo MP3</label>
+             <input type="file" id="mp3-upload" class="hidden" accept="audio/mpeg">
+             <span id="loading-status" class="text-gray-400 h-6 text-center"></span>
+             <button id="start-button" class="btn text-2xl w-full" disabled>Scegli una canzone</button>
+        </div>
+
+        <div class="selector-container">
+            <label for="background-select" class="text-center text-gray-300 mb-2 block">Scegli Sfondo</label>
+            <select id="background-select" class="custom-select">
+            </select>
+        </div>
+
+        <button id="default-music-button" class="btn-secondary">Gioca con musica di default</button>
+    </div>
+
+    <!-- Schermata di gioco -->
+    <div id="game-screen" class="screen hidden z-20 p-4">
+        <div id="stats-bar" class="relative w-full max-w-[500px] mb-4 flex flex-col justify-center text-lg p-4 rounded-xl bg-[#1a1a2e] shadow-[0_0_35px_rgba(76,89,186,0.3)] overflow-hidden" style="min-height: 130px;">
+            <canvas id="visualizer-canvas" class="absolute top-0 left-0 w-full h-full z-0"></canvas>
+            
+            <div class="relative z-10 flex justify-between items-center w-full">
+                <div class="text-left">
+                    <span class="text-gray-400 block text-sm">PUNTI</span>
+                    <span id="score" class="font-bold text-2xl text-glow">0</span>
+                </div>
+                <div class="text-center">
+                    <span class="text-gray-400 block text-sm">RECORD</span>
+                    <span id="current-high-score" class="font-bold text-2xl text-glow">0</span>
+                </div>
+                <div class="text-right">
+                    <span class="text-gray-400 block text-sm">COMBO</span>
+                    <span id="combo" class="font-bold text-2xl text-glow">x1</span>
+                </div>
+            </div>
+        </div>
+        <canvas id="game-canvas"></canvas>
+    </div>
+
+    <!-- Schermata di Game Over -->
+    <div id="game-over-screen" class="screen hidden bg-black/50 backdrop-blur-sm z-30">
+        <h2 class="text-5xl font-bold mb-2 text-glow">Game Over</h2>
+        <p class="text-2xl mb-4">Punteggio Finale: <span id="final-score" class="font-bold">0</span></p>
+        <p class="text-xl mb-8">Record: <span id="high-score" class="font-bold">0</span></p>
+        <button id="restart-button" class="btn text-xl">Torna al Menu</button>
+    </div>
+
+    <script>
+        // --- ELEMENTI UI ---
+        const startScreen = document.getElementById('start-screen'), gameScreen = document.getElementById('game-screen'), gameOverScreen = document.getElementById('game-over-screen');
+        const startButton = document.getElementById('start-button'), restartButton = document.getElementById('restart-button'), defaultMusicButton = document.getElementById('default-music-button');
+        const mp3Upload = document.getElementById('mp3-upload'), loadingStatus = document.getElementById('loading-status'), uploadLabel = document.getElementById('upload-label');
+        const scoreEl = document.getElementById('score'), finalScoreEl = document.getElementById('final-score'), highScoreEl = document.getElementById('high-score'), comboEl = document.getElementById('combo');
+        const currentHighScoreEl = document.getElementById('current-high-score');
+        const canvas = document.getElementById('game-canvas'), ctx = canvas.getContext('2d');
+        const backgroundSelect = document.getElementById('background-select');
+        const songSelect = document.getElementById('song-select'); // NUOVO
+        const statsBar = document.getElementById('stats-bar');
+        const visualizerCanvas = document.getElementById('visualizer-canvas');
+        const visualizerCtx = visualizerCanvas.getContext('2d');
+
+        // --- IMPOSTAZIONI GIOCO ---
+        let score = 0, combo = 1, comboCounter = 0, highScore = localStorage.getItem('rhythmCubeHighScore') || 0;
+        let gameLoopId, cubes = [], particles = [], baseSpeed = 3.5, speedMultiplier = 1, isGameOver = false;
+        let gameStartTime = 0, animationTime = 0;
+        const cubeSize = 80;
+        let lanePositions = [];
+        let currentScheme;
+        let currentBackground = localStorage.getItem('rhythmCubeBackground') || 'aurora';
+        let pulseTimeout;
+
+        // --- DIFFICOLTÀ PROGRESSIVA ---
+        let maxVisibleCubes = 1;
+        let difficultyTimer;
+        const MAX_CUBES_CAP = 12;
+
+        // --- ANALISI RITMO ---
+        let analyser;
+        const historySize = 60;
+        const bassThreshold = 1.6, bassHoldThreshold = 2.0, bassCooldown = 500;
+        let lastBassBeatTime = 0, bassEnergyHistory = new Array(historySize).fill(-100), bassHistoryIndex = 0;
+        const midThreshold = 1.8, midCooldown = 550;
+        let lastMidBeatTime = 0, midEnergyHistory = new Array(historySize).fill(-100), midHistoryIndex = 0;
+        const highThreshold = 2.0, highCooldown = 450;
+        let lastHighBeatTime = 0, highEnergyHistory = new Array(historySize).fill(-100), highHistoryIndex = 0;
+
+        // --- SCHEMI DI COLORE ---
+        const graphiteScheme = { name: 'graphite', gradient: ['#555555', '#222222'], shadow: 'rgba(150, 150, 150, 0.5)', stroke: '#888888', particles: '#cccccc', veins: 'rgba(255, 255, 255, 0.15)' };
+        const marbleScheme = { name: 'marble', gradient: ['#ffffff', '#e0e0e0'], shadow: 'rgba(100, 100, 100, 0.4)', stroke: '#cccccc', particles: '#bbbbbb', veins: 'rgba(50, 50, 50, 0.2)' };
+        const schemes = [graphiteScheme, marbleScheme];
+
+        // --- IMPOSTAZIONI AUDIO ---
+        let musicPlayer, hitSound, holdSound, synthMusic;
+        let useSynthMusic = false;
+        let isAudioInitialized = false;
+
+        // NUOVO: Lista di canzoni predefinite
+        const preloadedSongs = [
+            { title: "Synthwave Adventure", url: "./music/synthwave-adventure.mp3" },
+            { title: "Cosmic Drift", url: "./music/cosmic-drift.mp3" },
+            { title: "Pixel Pulse", url: "./music/pixel-pulse.mp3" }
+        ];
+
+        async function initializeAudio() {
+            if (isAudioInitialized) return;
+            await Tone.start();
+            console.log("AudioContext avviato correttamente dall'utente.");
+            
+            analyser = new Tone.Analyser('fft', 1024);
+            hitSound = new Tone.MembraneSynth({ pitchDecay: 0.01, octaves: 6, oscillator: { type: 'sine' }, envelope: { attack: 0.001, decay: 0.2, sustain: 0.01, release: 0.4, attackCurve: 'exponential' }, volume: -6 }).toDestination();
+            holdSound = new Tone.AMSynth({ harmonicity: 1.5, envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.1 }, volume: -10 }).toDestination();
+            synthMusic = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "fmsquare", harmonicity: 0.5 }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.1 }, volume: -18 }).fan(analyser, Tone.Destination);
+            new Tone.Sequence((time, note) => { synthMusic.triggerAttackRelease(note, "8n", time); }, ["C2", "G2", "E2", "B2"], "4n").start(0);
+            Tone.Transport.bpm.value = 100;
+            isAudioInitialized = true;
+        }
+
+        // --- FUNZIONI HELPER ---
+        function drawRoundedRect(ctx, x, y, width, height, radius) { ctx.beginPath(); ctx.moveTo(x + radius, y); ctx.lineTo(x + width - radius, y); ctx.arcTo(x + width, y, x + width, y + radius, radius); ctx.lineTo(x + width, y + height - radius); ctx.arcTo(x + width, y + height, x + width - radius, y + height, radius); ctx.lineTo(x + radius, y + height); ctx.arcTo(x, y + height, x, y + height - radius, radius); ctx.lineTo(x, y + radius); ctx.arcTo(x, y, x + radius, y, radius); ctx.closePath(); }
+
+        // --- CLASSI ---
+        class Particle { constructor(x, y, color) { this.x = x; this.y = y; this.color = color; this.size = Math.random() * 5 + 2; this.speedX = (Math.random() - 0.5) * 4; this.speedY = (Math.random() - 0.5) * 4; this.alpha = 1; } update() { this.x += this.speedX; this.y += this.speedY; this.alpha -= 0.03; } draw() { ctx.save(); ctx.globalAlpha = this.alpha; ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill(); ctx.restore(); } }
+        class Cube {
+            constructor(x, y, size, scheme, speed, type = 'tap') {
+                this.x = x; this.y = y; this.size = size; this.scheme = scheme; this.speed = speed; this.type = type;
+                this.isHit = false; this.alpha = 1; this.height = (type === 'hold') ? size * 2.5 : size;
+                this.isHolding = false; this.holdProgress = 0; this.holdDuration = 60; this.cornerRadius = 15;
+                this.touchId = null;
+                this.veins = [];
+                const numVeins = Math.floor(Math.random() * 5) + 5;
+                for (let i = 0; i < numVeins; i++) { this.veins.push({ x1: Math.random() * this.size, y1: Math.random() * this.height, x2: Math.random() * this.size, y2: Math.random() * this.height, lineWidth: Math.random() * 1.5 + 0.5 }); }
+            }
+            update() { this.y += this.speed * speedMultiplier; if (this.isHit) this.alpha -= 0.15; if (this.isHolding && this.holdProgress < this.holdDuration) this.holdProgress++; }
+            draw() {
+                ctx.save(); ctx.globalAlpha = this.alpha;
+                ctx.shadowColor = this.scheme.shadow; ctx.shadowBlur = 20;
+                const gradient = ctx.createLinearGradient(this.x, this.y, this.x + this.size, this.y + this.height);
+                gradient.addColorStop(0, this.scheme.gradient[0]); gradient.addColorStop(1, this.scheme.gradient[1]);
+                ctx.fillStyle = gradient;
+                drawRoundedRect(ctx, this.x, this.y, this.size, this.height, this.cornerRadius); ctx.fill();
+                ctx.shadowBlur = 0; ctx.strokeStyle = this.scheme.veins;
+                this.veins.forEach(vein => { ctx.beginPath(); ctx.moveTo(this.x + vein.x1, this.y + vein.y1); ctx.lineTo(this.x + vein.x2, this.y + vein.y2); ctx.lineWidth = vein.lineWidth * this.alpha; ctx.stroke(); });
+                const glossGradient = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.height * 0.5);
+                glossGradient.addColorStop(0, 'rgba(255, 255, 255, 0.4)'); glossGradient.addColorStop(1, 'rgba(255, 255, 255, 0.0)');
+                ctx.fillStyle = glossGradient;
+                drawRoundedRect(ctx, this.x, this.y, this.size, this.height, this.cornerRadius); ctx.fill();
+                ctx.strokeStyle = this.scheme.stroke; ctx.lineWidth = 2.5;
+                drawRoundedRect(ctx, this.x, this.y, this.size, this.height, this.cornerRadius); ctx.stroke();
+                if (this.type === 'hold') {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                    drawRoundedRect(ctx, this.x + this.size / 2 - 2, this.y + 10, 4, this.height - 20, 2); ctx.fill();
+                    if (this.isHolding) {
+                        const progressHeight = (this.holdProgress / this.holdDuration) * this.height;
+                        ctx.fillStyle = this.scheme.stroke; ctx.globalAlpha = 0.5 * this.alpha;
+                        drawRoundedRect(ctx, this.x, this.y + this.height - progressHeight, this.size, progressHeight, this.cornerRadius); ctx.fill();
+                    }
+                }
+                ctx.restore();
+            }
+        }
+
+        // --- SISTEMA SFONDI ---
+        const backgroundFunctions = {
+            aurora: (ctx, time) => { ctx.fillStyle = '#0f0f1e'; ctx.fillRect(0, 0, canvas.width, canvas.height); const w = canvas.width; const h = canvas.height; for (let i = 0; i < 3; i++) { const grad = ctx.createLinearGradient(0, 0, 0, h); const t = time * 0.0001 + i * 2; const color1 = `hsla(${160 + i*20 + Math.sin(t) * 20}, 100%, 50%, 0.2)`; const color2 = `hsla(${240 + i*20 + Math.cos(t) * 20}, 100%, 50%, 0)`; grad.addColorStop(0, color1); grad.addColorStop(1, color2); ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(-w * 0.2 + Math.sin(t*1.2) * w*0.3, 0); ctx.bezierCurveTo(w/2 + Math.cos(t) * w*0.2, h/2, w/2 + Math.sin(t) * w*0.2, h/2, w*1.2 + Math.cos(t*1.2) * w*0.3, h); ctx.lineTo(w*1.2, 0); ctx.fill(); } },
+            rainbow: (ctx, time) => { const grad = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 0, canvas.width/2, canvas.height/2, canvas.width); const hue = time * 0.01; grad.addColorStop(0, `hsla(${(hue % 360)}, 80%, 50%, 0.4)`); grad.addColorStop(0.5, `hsla(${(hue + 60) % 360}, 80%, 50%, 0.2)`); grad.addColorStop(1, `hsla(${(hue + 120) % 360}, 80%, 50%, 0.0)`); ctx.fillStyle = '#111'; ctx.fillRect(0,0,canvas.width, canvas.height); ctx.fillStyle = grad; ctx.fillRect(0,0,canvas.width, canvas.height); },
+            synthGrid: (ctx, time) => { ctx.fillStyle = '#100520'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.save(); ctx.translate(canvas.width/2, canvas.height * 0.6); ctx.scale(1, 0.4); ctx.strokeStyle = 'rgba(255, 80, 220, 0.4)'; ctx.lineWidth = 2; const t = time * 0.001; for(let i = 0; i < 50; i++) { const y = -2000 + i * 40 - (t % 40); const p = y / 2000; if (y < 0) continue; ctx.beginPath(); ctx.moveTo(-2000, y); ctx.lineTo(2000, y); ctx.globalAlpha = 1 - p; ctx.stroke(); } for(let i = 0; i < 20; i++) { const x = -1000 + i * 100; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, -2000); ctx.stroke(); } ctx.restore(); },
+            meteors: (ctx, time) => { ctx.fillStyle = 'rgba(15, 15, 30, 0.1)'; ctx.fillRect(0, 0, canvas.width, canvas.height); if (Math.random() > 0.98) { particles.push(new Meteor()); } particles.forEach((p,i) => { if(p.isMeteor) { p.update(); p.draw(); if(p.alpha <= 0) particles.splice(i,1); } }); },
+            tunnel: (ctx, time) => { ctx.fillStyle = '#111'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.save(); ctx.translate(canvas.width/2, canvas.height/2); const t = time * 0.0005; for(let i = 20; i > 0; i--) { ctx.strokeStyle = `hsla(${(t*10 + i*10) % 360}, 100%, 70%, ${0.5 / i * 5})`; ctx.lineWidth = 5; ctx.beginPath(); const size = i * 50 + Math.sin(t + i*0.5) * 20; ctx.arc(0, 0, size, 0, Math.PI * 2); ctx.stroke(); } ctx.restore(); },
+            electric: (ctx, time) => { ctx.fillStyle = 'rgba(10, 5, 15, 0.1)'; ctx.fillRect(0, 0, canvas.width, canvas.height); if (Math.random() > 0.9) { particles.push(new Lightning()); } particles.forEach((p,i) => { if(p.isLightning) { p.update(); p.draw(); if(p.alpha <= 0) particles.splice(i,1); } }); }
+        };
+        class Meteor extends Particle { constructor() { super(Math.random()*canvas.width, -20, '#fff'); this.isMeteor = true; this.speedX = -2; this.speedY = 10; this.size = Math.random() * 3 + 2; } draw() { ctx.fillStyle = `rgba(255, 255, 255, ${this.alpha})`; ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(this.x - this.speedX * 10, this.y - this.speedY * 10); ctx.strokeStyle = `rgba(255, 255, 255, ${this.alpha * 0.5})`; ctx.lineWidth = this.size; ctx.stroke(); } }
+        class Lightning extends Particle { constructor() { super(Math.random()*canvas.width, Math.random()*canvas.height, '#fff'); this.isLightning = true; this.alpha = 1; this.life = 30; this.segments = []; this.recalc(); } recalc() { this.segments = [{x: this.x, y: this.y}]; let last = {x: this.x, y: this.y}; for(let i=0; i<5; i++) { let next = {x: last.x + (Math.random()-0.5)*50, y: last.y + (Math.random()-0.5)*50}; this.segments.push(next); last = next; } } update() { this.life--; this.alpha = this.life / 30; if(this.life % 5 === 0) this.recalc(); } draw() { ctx.save(); ctx.globalAlpha = this.alpha; ctx.strokeStyle = `hsl(200, 100%, ${60 + Math.random()*40}%)`; ctx.lineWidth = Math.random()*2+1; ctx.shadowColor = '#91f0ff'; ctx.shadowBlur = 20; ctx.beginPath(); ctx.moveTo(this.segments[0].x, this.segments[0].y); for(let i=1; i<this.segments.length; i++) { ctx.lineTo(this.segments[i].x, this.segments[i].y); } ctx.stroke(); ctx.restore(); } }
+
+        // --- FUNZIONI DI GIOCO ---
+        function startGame() {
+            score = 0; combo = 1; comboCounter = 0; speedMultiplier = 1; cubes = []; particles = [];
+            isGameOver = false; gameStartTime = 0; animationTime = 0;
+            
+            maxVisibleCubes = 1;
+            if (difficultyTimer) clearInterval(difficultyTimer);
+            difficultyTimer = setInterval(() => {
+                if (maxVisibleCubes < MAX_CUBES_CAP) {
+                    maxVisibleCubes++;
+                }
+            }, 10000); 
+
+            bassEnergyHistory.fill(-100); lastBassBeatTime = 0;
+            midEnergyHistory.fill(-100); lastMidBeatTime = 0;
+            highEnergyHistory.fill(-100); lastHighBeatTime = 0;
+            
+            scoreEl.textContent = score;
+            comboEl.textContent = 'x' + combo;
+            currentHighScoreEl.textContent = highScore;
+            currentScheme = schemes[Math.floor(Math.random() * schemes.length)];
+            startScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); gameScreen.classList.remove('hidden');
+            resizeCanvas();
+            if (useSynthMusic) { Tone.Transport.start(); }
+            else if (musicPlayer && musicPlayer.loaded) { musicPlayer.start(); }
+            gameLoopId = requestAnimationFrame(gameLoop);
+        }
+
+        function drawVisualizer() {
+            if (!analyser || !visualizerCanvas.width || isGameOver) {
+                visualizerCtx.clearRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
+                return;
+            }
+            visualizerCtx.clearRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
+
+            const fftData = analyser.getValue();
+            if (!fftData || fftData.length === 0) return;
+
+            const barCount = 32;
+            const barWidth = visualizerCanvas.width / barCount;
+            const blockHeight = visualizerCanvas.height / 10;
+
+            for (let i = 0; i < barCount; i++) {
+                const fftIndex = Math.floor(Math.pow(1.09, i));
+                if (fftIndex >= fftData.length * 0.5) break;
+
+                const value = fftData[fftIndex];
+                const normalized = (value + 120) / 90;
+                const numBlocks = Math.max(0, Math.min(10, Math.floor(normalized * 10)));
+
+                for (let j = 0; j < numBlocks; j++) {
+                    const hue = 180 + (i / barCount) * 180;
+                    const lightness = 40 + (j / 10) * 40;
+                    visualizerCtx.fillStyle = `hsl(${hue}, 100%, ${lightness}%)`;
+                    
+                    const x = i * barWidth;
+                    const y = visualizerCanvas.height - (j + 1) * blockHeight;
+                    visualizerCtx.globalAlpha = 0.85;
+                    visualizerCtx.fillRect(x, y, barWidth - 1.5, blockHeight - 1.5);
+                }
+            }
+            visualizerCtx.globalAlpha = 1.0;
+        }
+
+        function analyzeRhythmAndSpawn(timestamp) {
+            if (!analyser) return;
+            const fft = analyser.getValue();
+            if (!fft || fft.length === 0) return;
+
+            let highEnergy = 0;
+            for (let i = 150; i < 400; i++) { highEnergy += fft[i]; }
+            highEnergy /= 250;
+            const avgHighEnergy = highEnergyHistory.reduce((a, b) => a + b, 0) / historySize;
+            highEnergyHistory[highHistoryIndex] = highEnergy;
+            highHistoryIndex = (highHistoryIndex + 1) % historySize;
+
+            let midEnergy = 0;
+            for (let i = 8; i < 50; i++) { midEnergy += fft[i]; }
+            midEnergy /= 42;
+            const avgMidEnergy = midEnergyHistory.reduce((a, b) => a + b, 0) / historySize;
+            midEnergyHistory[midHistoryIndex] = midEnergy;
+            midHistoryIndex = (midHistoryIndex + 1) % historySize;
+            
+            let bassEnergy = 0;
+            for (let i = 2; i < 6; i++) { bassEnergy += fft[i]; }
+            bassEnergy /= 4;
+            const avgBassEnergy = bassEnergyHistory.reduce((a, b) => a + b, 0) / historySize;
+            bassEnergyHistory[bassHistoryIndex] = bassEnergy;
+            bassHistoryIndex = (bassHistoryIndex + 1) % historySize;
+
+            if (bassEnergy > avgBassEnergy * 1.5 && bassEnergy > -70) {
+                if (!statsBar.classList.contains('pulse')) {
+                    statsBar.classList.add('pulse');
+                    clearTimeout(pulseTimeout);
+                    pulseTimeout = setTimeout(() => {
+                        statsBar.classList.remove('pulse');
+                    }, 150);
+                }
+            }
+
+            if (timestamp - lastHighBeatTime > highCooldown) { if (highEnergy > avgHighEnergy * highThreshold && highEnergy > -80) { spawnCube(0, 'tap'); lastHighBeatTime = timestamp; } }
+            if (timestamp - lastMidBeatTime > midCooldown) { if (midEnergy > avgMidEnergy * midThreshold && midEnergy > -75) { spawnCube(1, 'tap'); lastMidBeatTime = timestamp; } }
+            if (timestamp - lastBassBeatTime > bassCooldown) { if (bassEnergy > avgBassEnergy * bassHoldThreshold && bassEnergy > -60) { spawnCube(2, 'hold'); lastBassBeatTime = timestamp; } else if (bassEnergy > avgBassEnergy * bassThreshold && bassEnergy > -65) { spawnCube(2, 'tap'); lastBassBeatTime = timestamp; } }
+        }
+
+        function gameLoop(timestamp) {
+            if (isGameOver) return;
+            if (gameStartTime === 0) gameStartTime = timestamp;
+            animationTime = timestamp;
+
+            backgroundFunctions[currentBackground](ctx, animationTime);
+            
+            drawVisualizer();
+            
+            analyzeRhythmAndSpawn(timestamp);
+
+            drawLanes();
+            particles.forEach((p, i) => { if(!p.isMeteor && !p.isLightning) { p.update(); p.draw(); if (p.alpha <= 0) particles.splice(i, 1); } });
+            cubes.forEach((cube, i) => {
+                cube.update();
+                cube.draw();
+                if (cube.type === 'hold' && cube.isHolding && !cube.isHit && cube.holdProgress >= cube.holdDuration) {
+                    cube.isHit = true; cube.isHolding = false;
+                    hitSound.triggerAttackRelease('G4', '8n');
+                    handleSuccess(cube);
+                    holdSound.triggerRelease();
+                }
+                if (cube.y > canvas.height && !cube.isHit) { endGame(); return; }
+                if (cube.alpha <= 0) cubes.splice(i, 1);
+            });
+            gameLoopId = requestAnimationFrame(gameLoop);
+        }
+
+        function endGame() {
+            isGameOver = true;
+            cancelAnimationFrame(gameLoopId);
+            if (difficultyTimer) clearInterval(difficultyTimer);
+            if (useSynthMusic) { Tone.Transport.stop(); Tone.Transport.cancel(0); }
+            else if (musicPlayer) { musicPlayer.stop(); }
+            if (score > highScore) { highScore = score; localStorage.setItem('rhythmCubeHighScore', highScore); }
+            finalScoreEl.textContent = score;
+            highScoreEl.textContent = highScore;
+            gameScreen.classList.add('hidden');
+            gameOverScreen.classList.remove('hidden');
+            visualizerCtx.clearRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
+        }
+
+        function spawnCube(laneIndex, type) {
+            if (cubes.length >= maxVisibleCubes) return;
+            const minSpawnGap = 20;
+            const cubesInThisLane = cubes.filter(c => lanePositions[laneIndex] !== undefined && c.x === lanePositions[laneIndex]);
+            if (cubesInThisLane.length > 0) {
+                const highestCube = cubesInThisLane.reduce((prev, curr) => prev.y < curr.y ? prev : curr);
+                if (highestCube.y < minSpawnGap) return; 
+            }
+            if (lanePositions[laneIndex] === undefined) return;
+            const x = lanePositions[laneIndex];
+            const y = -cubeSize * (type === 'hold' ? 2.5 : 1);
+            cubes.push(new Cube(x, y, cubeSize, currentScheme, baseSpeed, type));
+        }
+
+        function createParticles(x, y, color) { for (let i = 0; i < 20; i++) particles.push(new Particle(x, y, color)); }
+        function resetCombo() { combo = 1; comboCounter = 0; comboEl.textContent = 'x' + combo; }
+        function handleSuccess(cube) {
+            score += (cube.type === 'hold' ? 25 : 10) * combo;
+            scoreEl.textContent = score;
+            comboCounter++;
+            if (comboCounter > 0 && comboCounter % 5 === 0) { combo++; comboEl.textContent = 'x' + combo; }
+            createParticles(cube.x + cube.size / 2, cube.y + cube.height / 2, cube.scheme.particles);
+        }
+
+        function handlePressStart(event) {
+            event.preventDefault(); if (isGameOver) return;
+            const rect = canvas.getBoundingClientRect();
+            const touches = event.changedTouches || (event.clientX ? [event] : []);
+            let anyHit = false;
+            for (let i = 0; i < touches.length; i++) {
+                const touch = touches[i];
+                const x = touch.clientX - rect.left; const y = touch.clientY - rect.top;
+                for (let j = cubes.length - 1; j >= 0; j--) {
+                    const cube = cubes[j];
+                    if (!cube.isHit && !cube.isHolding && x > cube.x && x < cube.x + cube.size && y > cube.y && y < cube.y + cube.height) {
+                        anyHit = true;
+                        if (cube.type === 'tap') { cube.isHit = true; hitSound.triggerAttackRelease('C3', '8n'); handleSuccess(cube); } 
+                        else if (cube.type === 'hold') { cube.isHolding = true; cube.touchId = touch.identifier ?? 'mouse'; holdSound.triggerAttack('C4', Tone.now()); }
+                        break;
+                    }
+                }
+            }
+            if (!anyHit) resetCombo();
+        }
+
+        function handlePressEnd(event) {
+            event.preventDefault(); if (isGameOver) return;
+            const touches = event.changedTouches || (event.clientX ? [event] : []);
+            for (let i = 0; i < touches.length; i++) {
+                const touch = touches[i];
+                const touchId = touch.identifier ?? 'mouse';
+                const heldCube = cubes.find(c => c.isHolding && c.touchId === touchId);
+                if (heldCube) {
+                    if (heldCube.holdProgress < heldCube.holdDuration) { resetCombo(); }
+                    holdSound.triggerRelease(); heldCube.isHolding = false; heldCube.isHolding = null;
+                }
+            }
+        }
+
+        function drawLanes() {
+            ctx.save();
+            const hue = (animationTime / 20) % 360;
+            ctx.strokeStyle = `hsl(${hue}, 100%, 75%)`;
+            ctx.lineWidth = 4;
+            ctx.shadowColor = `hsl(${hue}, 100%, 75%)`;
+            ctx.shadowBlur = 25;
+            const gap = 20;
+            const linePositions = [ lanePositions[0] - gap / 2, lanePositions[0] + cubeSize + gap / 2, lanePositions[1] + cubeSize + gap / 2, lanePositions[2] + cubeSize + gap / 2 ];
+            linePositions.forEach(xPos => {
+                if (xPos <= 0 || xPos >= canvas.width) return;
+                ctx.beginPath();
+                const segments = 50;
+                const amplitude = 4;
+                const frequency = 0.05;
+                for (let i = 0; i <= segments; i++) {
+                    const y = (canvas.height / segments) * i;
+                    const xOffset = Math.sin(y * frequency + animationTime * 0.002) * amplitude;
+                    if (i === 0) { ctx.moveTo(xPos + xOffset, y); } else { ctx.lineTo(xPos + xOffset, y); }
+                }
+                ctx.stroke();
+            });
+            ctx.restore();
+        }
+
+        function resizeCanvas() {
+            const screenHeight = window.innerHeight; const screenWidth = window.innerWidth;
+            const statsBarHeight = statsBar ? statsBar.offsetHeight : 0;
+            canvas.width = Math.min(screenWidth * 0.95, 500);
+            const verticalPadding = 32;
+            canvas.height = screenHeight - statsBarHeight - verticalPadding - 16;
+            const gap = 20;
+            const totalCubesWidth = cubeSize * 3 + gap * 2;
+            const startX = (canvas.width - totalCubesWidth) / 2;
+            lanePositions = [ startX, startX + cubeSize + gap, startX + cubeSize * 2 + gap * 2 ];
+
+            if (statsBar) {
+                visualizerCanvas.width = statsBar.clientWidth;
+                visualizerCanvas.height = statsBar.clientHeight;
+            }
+        }
+        
+        async function loadAudio(url) {
+            if (isAudioInitialized && Tone.context.state !== 'running') {
+                await Tone.context.resume();
+            }
+
+            loadingStatus.textContent = `Caricamento...`;
+            startButton.disabled = true; startButton.textContent = 'Caricamento...';
+            if (musicPlayer) {
+                musicPlayer.dispose();
+            }
+            musicPlayer = new Tone.Player({ 
+                url: url, 
+                onload: () => { 
+                    loadingStatus.textContent = `Pronto! Clicca Inizia.`; 
+                    startButton.disabled = false; 
+                    startButton.textContent = 'Inizia Partita'; 
+                }, 
+                onerror: (e) => { 
+                    console.error("Errore durante il caricamento del file audio:", e);
+                    loadingStatus.textContent = `Errore nel caricamento.`; 
+                    startButton.disabled = true; 
+                } 
+            }).fan(analyser, Tone.Destination);
+        }
+
+        function populateBackgroundOptions() {
+            const backgroundNames = { aurora: 'Aurora', rainbow: 'Arcobaleno', synthGrid: 'Synthwave', meteors: 'Meteore', tunnel: 'Tunnel', electric: 'Elettrico' };
+            backgroundSelect.innerHTML = '';
+            for (const key in backgroundNames) {
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = backgroundNames[key];
+                backgroundSelect.appendChild(option);
+            }
+            backgroundSelect.value = currentBackground;
+        }
+
+        // NUOVO: Funzione per popolare la lista di canzoni
+        function populateSongList() {
+            preloadedSongs.forEach(song => {
+                const option = document.createElement('option');
+                option.value = song.url;
+                option.textContent = song.title;
+                songSelect.appendChild(option);
+            });
+        }
+
+        // --- EVENT LISTENERS ---
+        window.addEventListener('resize', resizeCanvas);
+        startButton.addEventListener('click', () => { useSynthMusic = false; startGame(); });
+        defaultMusicButton.addEventListener('click', () => { useSynthMusic = true; startGame(); });
+        restartButton.addEventListener('click', () => { 
+            gameOverScreen.classList.add('hidden'); 
+            startScreen.classList.remove('hidden'); 
+            loadingStatus.textContent = ''; 
+            startButton.disabled = true; 
+            startButton.textContent = 'Scegli una canzone';
+            mp3Upload.value = '';
+            songSelect.value = ''; // Resetta anche il selettore delle canzoni
+        });
+        mp3Upload.addEventListener('change', (event) => { 
+            const file = event.target.files[0]; 
+            if (!file) return; 
+            songSelect.value = ''; // Deseleziona la canzone predefinita se se ne carica una
+            const fileUrl = URL.createObjectURL(file); 
+            loadAudio(fileUrl); 
+        });
+        songSelect.addEventListener('change', (event) => {
+            const songUrl = event.target.value;
+            if (!songUrl) return;
+            mp3Upload.value = ''; // Resetta l'input file se si sceglie una canzone
+            loadAudio(songUrl);
+        });
+        backgroundSelect.addEventListener('change', (e) => { currentBackground = e.target.value; localStorage.setItem('rhythmCubeBackground', currentBackground); });
+        const handleFirstInteraction = () => { if (!isAudioInitialized) { initializeAudio(); } startScreen.removeEventListener('click', handleFirstInteraction); };
+        startScreen.addEventListener('click', handleFirstInteraction);
+        canvas.addEventListener('mousedown', handlePressStart);
+        canvas.addEventListener('touchstart', handlePressStart, { passive: false });
+        canvas.addEventListener('mouseup', handlePressEnd);
+        canvas.addEventListener('touchend', handlePressEnd);
+        canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        function init() {
+            highScoreEl.textContent = highScore;
+            currentHighScoreEl.textContent = highScore;
+            startScreen.classList.remove('hidden');
+            populateBackgroundOptions();
+            populateSongList(); // NUOVO
+            resizeCanvas();
+        }
+        init();
+    </script>
+</body>
+</html>
