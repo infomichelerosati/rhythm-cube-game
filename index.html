@@ -145,8 +145,8 @@
 
         // --- IMPOSTAZIONI GIOCO ---
         let score = 0, combo = 1, comboCounter = 0, highScore = localStorage.getItem('rhythmCubeHighScore') || 0;
-        // MODIFICATO: Ridotta la velocità di base per un inizio più lento
-        let gameLoopId, cubes = [], particles = [], baseSpeed = 2.5, speedMultiplier = 1, isGameOver = false;
+        // MODIFICATO: Ridotta ulteriormente la velocità di base per un inizio più lento
+        let gameLoopId, cubes = [], particles = [], baseSpeed = 1.8, speedMultiplier = 1, isGameOver = false;
         let gameStartTime = 0, animationTime = 0;
         const cubeSize = 80;
         let lanePositions = [];
