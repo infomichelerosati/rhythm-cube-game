@@ -259,23 +259,18 @@
             score = 0; combo = 1; comboCounter = 0; speedMultiplier = 1; cubes = []; particles = [];
             isGameOver = false; gameStartTime = 0; animationTime = 0;
             
-            // Resetta la difficoltà all'inizio di ogni partita
             maxVisibleCubes = 1;
-            speedMultiplier = 1; // Assicura che il moltiplicatore di velocità sia resettato
+            speedMultiplier = 1; 
             
-            // Pulisce il timer precedente se esiste
             if (difficultyTimer) clearInterval(difficultyTimer);
             
-            // MODIFICATO: Imposta un unico timer per aumentare la difficoltà progressivamente
             difficultyTimer = setInterval(() => {
-                // Aumenta il numero massimo di cubi visibili, fino a un limite
                 if (maxVisibleCubes < MAX_CUBES_CAP) {
                     maxVisibleCubes++;
                 }
-                // Aumenta la velocità dei cubi
                 speedMultiplier += 0.1;
 
-            }, 20000); // Aumenta la difficoltà ogni 20 secondi
+            }, 20000); 
 
             bassEnergyHistory.fill(-100); lastBassBeatTime = 0;
             midEnergyHistory.fill(-100); lastMidBeatTime = 0;
@@ -330,6 +325,10 @@
 
         function analyzeRhythmAndSpawn(timestamp) {
             if (!analyser) return;
+            
+            // MODIFICATO: Funzione per ottenere una colonna casuale
+            const getRandomLane = () => Math.floor(Math.random() * 3);
+
             const fft = analyser.getValue();
             if (!fft || fft.length === 0) return;
 
@@ -364,9 +363,28 @@
                 }
             }
 
-            if (timestamp - lastHighBeatTime > highCooldown) { if (highEnergy > avgHighEnergy * highThreshold && highEnergy > -80) { spawnCube(0, 'tap'); lastHighBeatTime = timestamp; } }
-            if (timestamp - lastMidBeatTime > midCooldown) { if (midEnergy > avgMidEnergy * midThreshold && midEnergy > -75) { spawnCube(1, 'tap'); lastMidBeatTime = timestamp; } }
-            if (timestamp - lastBassBeatTime > bassCooldown) { if (bassEnergy > avgBassEnergy * bassHoldThreshold && bassEnergy > -60) { spawnCube(2, 'hold'); lastBassBeatTime = timestamp; } else if (bassEnergy > avgBassEnergy * bassThreshold && bassEnergy > -65) { spawnCube(2, 'tap'); lastBassBeatTime = timestamp; } }
+            // MODIFICATO: La colonna di spawn è ora casuale per tutti i tipi di cubo
+            if (timestamp - lastHighBeatTime > highCooldown) { 
+                if (highEnergy > avgHighEnergy * highThreshold && highEnergy > -80) { 
+                    spawnCube(getRandomLane(), 'tap'); 
+                    lastHighBeatTime = timestamp; 
+                } 
+            }
+            if (timestamp - lastMidBeatTime > midCooldown) { 
+                if (midEnergy > avgMidEnergy * midThreshold && midEnergy > -75) { 
+                    spawnCube(getRandomLane(), 'tap'); 
+                    lastMidBeatTime = timestamp; 
+                } 
+            }
+            if (timestamp - lastBassBeatTime > bassCooldown) { 
+                if (bassEnergy > avgBassEnergy * bassHoldThreshold && bassEnergy > -60) { 
+                    spawnCube(getRandomLane(), 'hold'); 
+                    lastBassBeatTime = timestamp; 
+                } else if (bassEnergy > avgBassEnergy * bassThreshold && bassEnergy > -65) { 
+                    spawnCube(getRandomLane(), 'tap'); 
+                    lastBassBeatTime = timestamp; 
+                } 
+            }
         }
 
         function gameLoop(timestamp) {
@@ -412,7 +430,6 @@
         }
 
         function spawnCube(laneIndex, type) {
-            // Controlla se abbiamo raggiunto il numero massimo di cubi permessi
             if (cubes.length >= maxVisibleCubes) {
                 return;
             }
