@@ -145,7 +145,6 @@
 
         // --- IMPOSTAZIONI GIOCO ---
         let score = 0, combo = 1, comboCounter = 0, highScore = localStorage.getItem('rhythmCubeHighScore') || 0;
-        // MODIFICATO: Ridotta ulteriormente la velocità di base per un inizio più lento
         let gameLoopId, cubes = [], particles = [], baseSpeed = 1.8, speedMultiplier = 1, isGameOver = false;
         let gameStartTime = 0, animationTime = 0;
         const cubeSize = 80;
@@ -260,13 +259,23 @@
             score = 0; combo = 1; comboCounter = 0; speedMultiplier = 1; cubes = []; particles = [];
             isGameOver = false; gameStartTime = 0; animationTime = 0;
             
+            // Resetta la difficoltà all'inizio di ogni partita
             maxVisibleCubes = 1;
+            speedMultiplier = 1; // Assicura che il moltiplicatore di velocità sia resettato
+            
+            // Pulisce il timer precedente se esiste
             if (difficultyTimer) clearInterval(difficultyTimer);
+            
+            // MODIFICATO: Imposta un unico timer per aumentare la difficoltà progressivamente
             difficultyTimer = setInterval(() => {
+                // Aumenta il numero massimo di cubi visibili, fino a un limite
                 if (maxVisibleCubes < MAX_CUBES_CAP) {
                     maxVisibleCubes++;
                 }
-            }, 10000); 
+                // Aumenta la velocità dei cubi
+                speedMultiplier += 0.1;
+
+            }, 20000); // Aumenta la difficoltà ogni 20 secondi
 
             bassEnergyHistory.fill(-100); lastBassBeatTime = 0;
             midEnergyHistory.fill(-100); lastMidBeatTime = 0;
@@ -403,7 +412,11 @@
         }
 
         function spawnCube(laneIndex, type) {
-            if (cubes.length >= maxVisibleCubes) return;
+            // Controlla se abbiamo raggiunto il numero massimo di cubi permessi
+            if (cubes.length >= maxVisibleCubes) {
+                return;
+            }
+
             const minSpawnGap = 20;
             const cubesInThisLane = cubes.filter(c => lanePositions[laneIndex] !== undefined && c.x === lanePositions[laneIndex]);
             if (cubesInThisLane.length > 0) {
