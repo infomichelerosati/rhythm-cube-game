@@ -74,7 +74,6 @@
         <p class="text-lg md:text-xl mb-6 text-gray-300 text-center">Scegli una canzone o carica il tuo MP3!</p>
 
         <div class="w-full max-w-sm space-y-4 flex flex-col items-center">
-             <!-- NUOVO: Selettore per canzoni predefinite -->
              <div class="selector-container">
                 <label for="song-select" class="text-center text-gray-300 mb-2 block">Oppure scegli una canzone:</label>
                 <select id="song-select" class="custom-select">
@@ -139,14 +138,15 @@
         const currentHighScoreEl = document.getElementById('current-high-score');
         const canvas = document.getElementById('game-canvas'), ctx = canvas.getContext('2d');
         const backgroundSelect = document.getElementById('background-select');
-        const songSelect = document.getElementById('song-select'); // NUOVO
+        const songSelect = document.getElementById('song-select');
         const statsBar = document.getElementById('stats-bar');
         const visualizerCanvas = document.getElementById('visualizer-canvas');
         const visualizerCtx = visualizerCanvas.getContext('2d');
 
         // --- IMPOSTAZIONI GIOCO ---
         let score = 0, combo = 1, comboCounter = 0, highScore = localStorage.getItem('rhythmCubeHighScore') || 0;
-        let gameLoopId, cubes = [], particles = [], baseSpeed = 3.5, speedMultiplier = 1, isGameOver = false;
+        // MODIFICATO: Ridotta la velocità di base per un inizio più lento
+        let gameLoopId, cubes = [], particles = [], baseSpeed = 2.5, speedMultiplier = 1, isGameOver = false;
         let gameStartTime = 0, animationTime = 0;
         const cubeSize = 80;
         let lanePositions = [];
@@ -179,7 +179,6 @@
         let useSynthMusic = false;
         let isAudioInitialized = false;
 
-        // NUOVO: Lista di canzoni predefinite
         const preloadedSongs = [
             { title: "Synthwave Adventure", url: "./music/synthwave-adventure.mp3" },
             { title: "Cosmic Drift", url: "./music/cosmic-drift.mp3" },
@@ -541,7 +540,6 @@
             backgroundSelect.value = currentBackground;
         }
 
-        // NUOVO: Funzione per popolare la lista di canzoni
         function populateSongList() {
             preloadedSongs.forEach(song => {
                 const option = document.createElement('option');
@@ -562,19 +560,19 @@
             startButton.disabled = true; 
             startButton.textContent = 'Scegli una canzone';
             mp3Upload.value = '';
-            songSelect.value = ''; // Resetta anche il selettore delle canzoni
+            songSelect.value = '';
         });
         mp3Upload.addEventListener('change', (event) => { 
             const file = event.target.files[0]; 
             if (!file) return; 
-            songSelect.value = ''; // Deseleziona la canzone predefinita se se ne carica una
+            songSelect.value = '';
             const fileUrl = URL.createObjectURL(file); 
             loadAudio(fileUrl); 
         });
         songSelect.addEventListener('change', (event) => {
             const songUrl = event.target.value;
             if (!songUrl) return;
-            mp3Upload.value = ''; // Resetta l'input file se si sceglie una canzone
+            mp3Upload.value = '';
             loadAudio(songUrl);
         });
         backgroundSelect.addEventListener('change', (e) => { currentBackground = e.target.value; localStorage.setItem('rhythmCubeBackground', currentBackground); });
@@ -591,7 +589,7 @@
             currentHighScoreEl.textContent = highScore;
             startScreen.classList.remove('hidden');
             populateBackgroundOptions();
-            populateSongList(); // NUOVO
+            populateSongList();
             resizeCanvas();
         }
         init();
